@@ -1,0 +1,22 @@
+{
+    "name": "casbin/yii-adapter",
+    "keywords": ["casbin", "yii", "casbin-adapter", "database"],
+    "description": "Use Casbin in Yii PHP Framework. ",
+    "authors": [
+        {
+            "name": "TechLee",
+            "email": "techlee@qq.com"
+        }
+    ],
+    "license": "Apache-2.0",
+    "require": {
+        "yiisoft/yii2": "~2.0.14",
+    	"casbin/casbin": "~0.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "CasbinAdapter\\Yii\\": "src/"
+        }
+    }
+   
+}
