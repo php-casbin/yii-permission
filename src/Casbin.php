@@ -1,121 +1,79 @@
 <?php
 
-namespace CasbinAdapter\Yii;
+namespace yii\casbin;
 
-use yii\base\Component;
-use Casbin\Model\Model;
 use Casbin\Enforcer;
-use CasbinAdapter\Yii\Models\CasbinRule;
-use Yii;
+use Casbin\Model\Model;
+use yii\base\Component;
+use yii\db\Connection;
+use yii\db\SchemaBuilderTrait;
+use yii\di\exceptions\InvalidConfigException;
+use yii\helpers\Yii;
 
 /**
- * Casbin.
+ * Class Casbin
+ * @package docs\components\casbin
  *
- * @author techlee@qq.com
  */
 class Casbin extends Component
 {
-    public $enforcer;
+    use SchemaBuilderTrait;
 
-    public $adapter;
+    private $enforcer;
+    public $modelLoadType;
+    public $modelFilePath;
+    public $modelText;
+    public $autoInitTable = true;
+    public $db = 'db';
 
-    public $model;
-
-    public $config = [];
-
-    public function __construct($config = [])
+    public function getDb()
     {
-        $this->config = $this->mergeConfig(
-            require_once dirname(__DIR__).'/config/casbin.php',
-            $this->config
-        );
+        /** @var Connection $db */
+        $db = Yii::get($this->db);
 
-        $this->adapter = Yii::$container->get($this->config['adapter']);
-
-        $this->model = new Model();
-        if ('file' == $this->config['model']['config_type']) {
-            $this->model->loadModel($this->config['model']['config_file_path']);
-        } elseif ('text' == $this->configType) {
-            $this->model->loadModel($this->config['model']['config_text']);
-        }
+        return $db;
     }
 
-    /**
-     * Initializes the object.
-     * This method is invoked at the end of the constructor after the object is initialized with the
-     * given configuration.
-     */
-    public function init()
+    private function initTable()
     {
-        $db = CasbinRule::getDb();
-        $tableName = CasbinRule::tableName();
-        $table = $db->getTableSchema($tableName);
+        $db = $this->getDb();
+        $table = $db->getTableSchema(Adapter::TABLE);
         if (!$table) {
-            $res = $db->createCommand()->createTable($tableName, [
-                'id' => 'pk',
-                'ptype' => 'string',
-                'v0' => 'string',
-                'v1' => 'string',
-                'v2' => 'string',
-                'v3' => 'string',
-                'v4' => 'string',
-                'v5' => 'string',
+            $db->createCommand()->createTable(Adapter::TABLE, [
+                'id' => $this->primaryKey()->comment('主键 id'),
+                'ptype' => $this->string()->notNull()->comment('policy type'),
+                'v0' => $this->string()->notNull()->defaultValue('')->comment('规则 v0'),
+                'v1' => $this->string()->notNull()->defaultValue('')->comment('规则 v1'),
+                'v2' => $this->string()->notNull()->defaultValue('')->comment('规则 v2'),
+                'v3' => $this->string()->notNull()->defaultValue('')->comment('规则 v3'),
+                'v4' => $this->string()->notNull()->defaultValue('')->comment('规则 v4'),
+                'v5' => $this->string()->notNull()->defaultValue('')->comment('规则 v5'),
             ])->execute();
         }
     }
 
-    public function enforcer($newInstance = false)
-    {
-        if ($newInstance || is_null($this->enforcer)) {
-            $this->init();
-            $this->enforcer = new Enforcer($this->model, $this->adapter);
-        }
-
-        return $this->enforcer;
-    }
-
-    private function mergeConfig(array $a, array $b)
-    {
-        foreach ($a as $key => $val) {
-            if (isset($b[$key])) {
-                if (gettype($a[$key]) != gettype($b[$key])) {
-                    continue;
-                }
-                if (is_array($a[$key])) {
-                    $a[$key] = $this->mergeConfig($a[$key], $b[$key]);
-                } else {
-                    $a[$key] = $b[$key];
-                }
-            }
-        }
-
-        return $a;
-    }
-
     /**
-     * Calls the named method which is not a class method.
-     *
-     * This method will check if any attached behavior has
-     * the named method and will execute it if available.
-     *
-     * Do not call this method directly as it is a PHP magic method that
-     * will be implicitly called when an unknown method is being invoked.
-     *
-     * @param string $name   the method name
-     * @param array  $params method parameters
-     *
-     * @return mixed the method return value
-     *
-     * @throws UnknownMethodException when calling unknown method
+     * @return Enforcer
+     * @throws InvalidConfigException
+     * @throws \Casbin\Exceptions\CasbinException
      */
-    public function __call($name, $params)
+    public function getEnforcer()
     {
-        foreach ($this->getBehaviors() as $object) {
-            if ($object->hasMethod($name)) {
-                return call_user_func_array([$object, $name], $params);
+        if (is_null($this->enforcer)) {
+            if ($this->autoInitTable) {
+                $this->initTable();
             }
+            $modelInstance = new Model();
+            if ('file' == $this->modelLoadType) {
+                $modelInstance->loadModel($this->modelFilePath);
+            } elseif ('text' == $this->modelLoadType) {
+                $modelInstance->loadModelFromText($this->modelText);
+            } else {
+                throw new InvalidConfigException();
+            }
+            $adapter = new Adapter($this->getDb());
+            $this->enforcer = new Enforcer($modelInstance, $adapter);
         }
-
-        return call_user_func_array([$this->enforcer(), $name], $params);
+        return $this->enforcer;
     }
 }

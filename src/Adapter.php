@@ -1,46 +1,41 @@
 <?php
 
-namespace CasbinAdapter\Yii;
+namespace yii\casbin;
 
-use CasbinAdapter\Yii\Models\CasbinRule;
 use Casbin\Exceptions\CasbinException;
 use Casbin\Persist\Adapter as AdapterContract;
 use Casbin\Persist\AdapterHelper;
+use yii\helpers\Yii;
 
-/**
- * DatabaseAdapter.
- *
- * @author techlee@qq.com
- */
 class Adapter implements AdapterContract
 {
     use AdapterHelper;
 
-    protected $casbinRule;
+    private $_db;
+    const TABLE = '{{%casbin_rule}}';
 
-    public function __construct(CasbinRule $casbinRule)
+    public function __construct($db)
     {
-        $this->casbinRule = $casbinRule;
+        /** @var \yii\web\Application $app */
+        $app = Yii::get('app');
+        $this->_db = $db;
     }
 
     public function savePolicyLine($ptype, array $rule)
     {
         $col['ptype'] = $ptype;
         foreach ($rule as $key => $value) {
-            $col['v'.strval($key).''] = $value;
+            $col['v' . strval($key) . ''] = $value;
         }
-        $ar = clone $this->casbinRule;
-        $ar->setAttributes($col);
-        $ar->save();
+        $this->_db->createCommand()->insert(self::TABLE, $col)->execute();
     }
 
     public function loadPolicy($model)
     {
-        $ar = clone $this->casbinRule;
-        $rows = $ar->find()->all();
-
+        $table = self::TABLE;
+        $rows = $this->_db->createCommand("SELECT * FROM {$table}")->queryAll();
         foreach ($rows as $row) {
-            $line = implode(', ', array_slice(array_values($row->toArray()), 1));
+            $line = implode(', ', array_slice(array_values($row), 1));
             $this->loadPolicyLine(trim($line), $model);
         }
     }
@@ -52,13 +47,11 @@ class Adapter implements AdapterContract
                 $this->savePolicyLine($ptype, $rule);
             }
         }
-
         foreach ($model->model['g'] as $ptype => $ast) {
             foreach ($ast->policy as $rule) {
                 $this->savePolicyLine($ptype, $rule);
             }
         }
-
         return true;
     }
 
@@ -69,13 +62,15 @@ class Adapter implements AdapterContract
 
     public function removePolicy($sec, $ptype, $rule)
     {
-        $result = $this->casbinRule->where('ptype', $ptype);
-
+        $wheres = [
+            'ptype' => $ptype
+        ];
         foreach ($rule as $key => $value) {
-            $result->where('v'.strval($key), $value);
+            $wheres['v' . strval($key)] = $value;
         }
-
-        return $result->delete();
+        return $this->_db->createCommand()->delete(self::TABLE, [
+            $wheres
+        ])->execute();
     }
 
     public function removeFilteredPolicy($sec, $ptype, $fieldIndex, ...$fieldValues)

@@ -10,12 +10,20 @@
     ],
     "license": "Apache-2.0",
     "require": {
-        "yiisoft/yii2": "~2.0.14",
-    	"casbin/casbin": "~0.1"
+        "yiisoft/yii-base-web": "dev-master",
+    	"casbin/casbin": "^0.1.6"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "3.0.x-dev"
+        },
+        "config-plugin": {
+            "web": "config/web.php"
+        }
     },
     "autoload": {
         "psr-4": {
-            "CasbinAdapter\\Yii\\": "src/"
+            "yii\\casbin\\": "src/"
         }
     }
    
