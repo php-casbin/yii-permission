@@ -64,7 +64,7 @@ $obj = 'data1'; // the resource that is going to be accessed.
 $act = 'read'; // the operation that the user performs on the resource.
 
 if (true === $casbin->enforce($sub, $obj, $act)) {
-    // permit alice to read data1x
+    // permit alice to read data1
 } else {
     // deny the request, show an error
 }
