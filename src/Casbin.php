@@ -27,7 +27,7 @@ class Casbin extends Component
     {
         $this->config = $this->mergeConfig(
             require_once dirname(__DIR__).'/config/casbin.php',
-            $this->config
+            $config
         );
 
         $this->adapter = Yii::$container->get($this->config['adapter']);
@@ -35,8 +35,8 @@ class Casbin extends Component
         $this->model = new Model();
         if ('file' == $this->config['model']['config_type']) {
             $this->model->loadModel($this->config['model']['config_file_path']);
-        } elseif ('text' == $this->configType) {
-            $this->model->loadModel($this->config['model']['config_text']);
+        } elseif ('text' == $this->config['model']['config_file_path']) {
+            $this->model->loadModelFromText($this->config['model']['config_text']);
         }
     }
 
