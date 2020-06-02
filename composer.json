@@ -1,0 +1,46 @@
+{
+    "name": "casbin/yii-permission",
+    "keywords": [
+        "casbin",
+        "yii",
+        "rbac",
+        "abac",
+        "acl",
+        "permission",
+        "casbin-adapter",
+        "database"
+    ],
+    "description": "Use Casbin in Yii2 PHP Framework, Casbin is a powerful and efficient open-source access control library.",
+    "authors": [
+        {
+            "name": "TechLee",
+            "email": "techlee@qq.com"
+        }
+    ],
+    "license": "Apache-2.0",
+    "require": {
+        "yiisoft/yii2": "~2.0.14",
+        "casbin/casbin": "^2.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "~7.0",
+        "php-coveralls/php-coveralls": "^2.1",
+        "yiisoft/yii2-app-basic": "~2.0.14"
+    },
+    "autoload": {
+        "psr-4": {
+            "yii\\permission\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "yii\\permission\\tests\\": "tests/"
+        }
+    },
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://asset-packagist.org"
+        }
+    ]
+}
