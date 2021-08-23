@@ -29,6 +29,19 @@ class AdapterTest extends TestCase
         $this->assertTrue(Yii::$app->permission->enforce('eve', 'data3', 'read'));
     }
 
+    public function testAddPolicies()
+    {
+        $policies = [
+            ['u1', 'd1', 'read'],
+            ['u2', 'd2', 'read'],
+            ['u3', 'd3', 'read'],
+        ];
+        Yii::$app->permission->clearPolicy();
+        $this->assertEquals([], Yii::$app->permission->getPolicy());
+        Yii::$app->permission->addPolicies($policies);
+        $this->assertEquals($policies, Yii::$app->permission->getPolicy());
+    }
+
     public function testSavePolicy()
     {
         $this->assertFalse(Yii::$app->permission->enforce('alice', 'data4', 'read'));
@@ -51,6 +64,26 @@ class AdapterTest extends TestCase
 
         Yii::$app->permission->deletePermissionForUser('alice', 'data5', 'read');
         $this->assertFalse(Yii::$app->permission->enforce('alice', 'data5', 'read'));
+    }
+
+    public function testRemovePolicies()
+    {
+        $this->assertEquals([
+            ['alice', 'data1', 'read'],
+            ['bob', 'data2', 'write'],
+            ['data2_admin', 'data2', 'read'],
+            ['data2_admin', 'data2', 'write'],
+        ], Yii::$app->permission->getPolicy());
+
+        Yii::$app->permission->removePolicies([
+            ['data2_admin', 'data2', 'read'],
+            ['data2_admin', 'data2', 'write'],
+        ]);
+
+        $this->assertEquals([
+            ['alice', 'data1', 'read'],
+            ['bob', 'data2', 'write']
+        ], Yii::$app->permission->getPolicy());
     }
 
     public function testRemoveFilteredPolicy()
