@@ -6,6 +6,9 @@ use PHPUnit\Framework\TestCase;
 use yii\web\Application;
 use Yii;
 use yii\permission\models\CasbinRule;
+use Casbin\Persist\Adapters\Filter;
+use Casbin\Exceptions\InvalidFilterTypeException;
+use yii\db\ActiveQueryInterface;
 
 class AdapterTest extends TestCase
 {
@@ -101,6 +104,48 @@ class AdapterTest extends TestCase
         Yii::$app->permission->removeFilteredPolicy(2, 'write');
         $this->assertFalse(Yii::$app->permission->enforce('bob', 'data2', 'write'));
         $this->assertFalse(Yii::$app->permission->enforce('alice', 'data2', 'write'));
+    }
+
+    public function testLoadFilteredPolicy()
+    {
+        Yii::$app->permission->clearPolicy();
+        $adapter = Yii::$app->permission->getAdapter();
+        $adapter->setFiltered(true);
+        $this->assertEquals([], Yii::$app->permission->getPolicy());
+
+        // invalid filter type
+        try {
+            $filter = ['alice', 'data1', 'read'];
+            Yii::$app->permission->loadFilteredPolicy($filter);
+            $exception = InvalidFilterTypeException::class;
+            $this->fail("Expected exception $exception not thrown");
+        } catch (InvalidFilterTypeException $exception) {
+            $this->assertEquals("invalid filter type", $exception->getMessage());
+        }
+
+        // string
+        $filter = "v0 = 'bob'";
+        Yii::$app->permission->loadFilteredPolicy($filter);
+        $this->assertEquals([
+            ['bob', 'data2', 'write']
+        ], Yii::$app->permission->getPolicy());
+
+        // Filter
+        $filter = new Filter(['v2'], ['read']);
+        Yii::$app->permission->loadFilteredPolicy($filter);
+        $this->assertEquals([
+            ['alice', 'data1', 'read'],
+            ['data2_admin', 'data2', 'read'],
+        ], Yii::$app->permission->getPolicy());
+
+        // Closure
+        Yii::$app->permission->loadFilteredPolicy(function (ActiveQueryInterface &$entity) {
+            $entity->where(['v1' => 'data1']);
+        });
+
+        $this->assertEquals([
+            ['alice', 'data1', 'read'],
+        ], Yii::$app->permission->getPolicy());
     }
 
     public function createApplication()
