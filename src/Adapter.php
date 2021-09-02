@@ -6,18 +6,26 @@ use yii\permission\models\CasbinRule;
 use Casbin\Model\Model;
 use Casbin\Persist\Adapter as AdapterContract;
 use Casbin\Persist\BatchAdapter as BatchAdapterContract;
+use Casbin\Persist\FilteredAdapter as FilteredAdapterContract;
 use Casbin\Persist\AdapterHelper;
+use Casbin\Persist\Adapters\Filter;
+use Casbin\Exceptions\InvalidFilterTypeException;
 
 /**
  * DatabaseAdapter.
  *
  * @author techlee@qq.com
  */
-class Adapter implements AdapterContract, BatchAdapterContract
+class Adapter implements AdapterContract, BatchAdapterContract, FilteredAdapterContract
 {
     use AdapterHelper;
 
     protected $casbinRule;
+
+    /**
+     * @var bool
+     */
+    private $filtered = false;
 
     public function __construct(CasbinRule $casbinRule)
     {
@@ -180,5 +188,61 @@ class Adapter implements AdapterContract, BatchAdapterContract
         }
 
         $this->casbinRule->deleteAll($where);
+    }
+
+    /**
+     * Loads only policy rules that match the filter.
+     *
+     * @param Model $model
+     * @param mixed $filter
+     */
+    public function loadFilteredPolicy(Model $model, $filter): void
+    {
+        $entity = clone $this->casbinRule;
+        $entity = $entity->find();
+
+        if (is_string($filter)) {
+            $entity->where($filter);
+        } elseif ($filter instanceof Filter) {
+            foreach ($filter->p as $k => $v) {
+                $where[$v] = $filter->g[$k];
+                $entity->where([$v => $filter->g[$k]]);
+            }
+        } elseif ($filter instanceof \Closure) {
+            $filter($entity);
+        } else {
+            throw new InvalidFilterTypeException('invalid filter type');
+        }
+
+        $rows = $entity->all();
+        foreach ($rows as $row) {
+            unset($row->id);
+            $row = $row->toArray();
+            $line = implode(', ', array_filter($row, function ($val) {
+                return '' != $val && !is_null($val);
+            }));
+            $this->loadPolicyLine(trim($line), $model);
+        }
+        $this->setFiltered(true);
+    }
+
+    /**
+     * Returns true if the loaded policy has been filtered.
+     *
+     * @return bool
+     */
+    public function isFiltered(): bool
+    {
+        return $this->filtered;
+    }
+
+    /**
+     * Sets filtered parameter.
+     *
+     * @param bool $filtered
+     */
+    public function setFiltered(bool $filtered): void
+    {
+        $this->filtered = $filtered;
     }
 }
