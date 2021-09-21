@@ -7,6 +7,7 @@ use Casbin\Model\Model;
 use Casbin\Persist\Adapter as AdapterContract;
 use Casbin\Persist\BatchAdapter as BatchAdapterContract;
 use Casbin\Persist\FilteredAdapter as FilteredAdapterContract;
+use Casbin\Persist\UpdatableAdapter as UpdatableAdapterContract;
 use Casbin\Persist\AdapterHelper;
 use Casbin\Persist\Adapters\Filter;
 use Casbin\Exceptions\InvalidFilterTypeException;
@@ -16,7 +17,7 @@ use Casbin\Exceptions\InvalidFilterTypeException;
  *
  * @author techlee@qq.com
  */
-class Adapter implements AdapterContract, BatchAdapterContract, FilteredAdapterContract
+class Adapter implements AdapterContract, BatchAdapterContract, FilteredAdapterContract, UpdatableAdapterContract
 {
     use AdapterHelper;
 
@@ -162,7 +163,42 @@ class Adapter implements AdapterContract, BatchAdapterContract, FilteredAdapterC
             $transaction->commit();
         } catch (\Exception $e) {
             $transaction->rollBack();
+            throw $e;
         }
+    }
+
+    /**
+     * @param string $sec
+     * @param string $ptype
+     * @param int $fieldIndex
+     * @param string|null ...$fieldValues
+     * @return array
+     * @throws Throwable
+     */
+    public function _removeFilteredPolicy(string $sec, string $ptype, int $fieldIndex, ?string ...$fieldValues): array
+    {
+        $where = [];
+        $where['ptype'] = $ptype;
+
+        foreach (range(0, 5) as $value) {
+            if ($fieldIndex <= $value && $value < $fieldIndex + count($fieldValues)) {
+                if ('' != $fieldValues[$value - $fieldIndex]) {
+                    $where['v' . strval($value)] = $fieldValues[$value - $fieldIndex];
+                }
+            }
+        }
+
+        $removedRules = $this->casbinRule->find()->where($where)->all();
+        $this->casbinRule->deleteAll($where);
+
+        array_walk($removedRules, function (&$removedRule) {
+            unset($removedRule->id);
+            unset($removedRule->ptype);
+            $removedRule = $removedRule->toArray();
+            $removedRule = $this->filterRule($removedRule);
+        });
+
+        return $removedRules;
     }
 
     /**
@@ -176,18 +212,7 @@ class Adapter implements AdapterContract, BatchAdapterContract, FilteredAdapterC
      */
     public function removeFilteredPolicy(string $sec, string $ptype, int $fieldIndex, string ...$fieldValues): void
     {
-        $where = [];
-        $where['ptype'] = $ptype;
-
-        foreach (range(0, 5) as $value) {
-            if ($fieldIndex <= $value && $value < $fieldIndex + count($fieldValues)) {
-                if ('' != $fieldValues[$value - $fieldIndex]) {
-                    $where['v' . strval($value)] = $fieldValues[$value - $fieldIndex];
-                }
-            }
-        }
-
-        $this->casbinRule->deleteAll($where);
+        $this->_removeFilteredPolicy($sec, $ptype, $fieldIndex, ...$fieldValues);
     }
 
     /**
@@ -224,6 +249,100 @@ class Adapter implements AdapterContract, BatchAdapterContract, FilteredAdapterC
             $this->loadPolicyLine(trim($line), $model);
         }
         $this->setFiltered(true);
+    }
+
+    /**
+     * Updates a policy rule from storage.
+     * This is part of the Auto-Save feature.
+     *
+     * @param string $sec
+     * @param string $ptype
+     * @param string[] $oldRule
+     * @param string[] $newPolicy
+     */
+    public function updatePolicy(string $sec, string $ptype, array $oldRule, array $newPolicy): void
+    {
+        $entity = clone $this->casbinRule;
+
+        $condition['ptype'] = $ptype;
+        foreach ($oldRule as $k => $v) {
+            $condition['v' . $k] = $v;
+        }
+        $item = $entity->findOne($condition);
+        foreach ($newPolicy as $k => $v) {
+            $key = 'v' . $k;
+            $item->$key = $v;
+        }
+        $item->update();
+    }
+
+    /**
+     * UpdatePolicies updates some policy rules to storage, like db, redis.
+     *
+     * @param string $sec
+     * @param string $ptype
+     * @param string[][] $oldRules
+     * @param string[][] $newRules
+     * @return void
+     */
+    public function updatePolicies(string $sec, string $ptype, array $oldRules, array $newRules): void
+    {
+        $transaction = $this->casbinRule->getDb()->beginTransaction();
+        try {
+            foreach ($oldRules as $i => $oldRule) {
+                $this->updatePolicy($sec, $ptype, $oldRule, $newRules[$i]);
+            }
+            $transaction->commit();
+        } catch (\Exception $e) {
+            $transaction->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * UpdateFilteredPolicies deletes old rules and adds new rules.
+     *
+     * @param string $sec
+     * @param string $ptype
+     * @param array $newPolicies
+     * @param integer $fieldIndex
+     * @param string ...$fieldValues
+     * @return array
+     */
+    public function updateFilteredPolicies(string $sec, string $ptype, array $newRules, int $fieldIndex, ?string ...$fieldValues): array
+    {
+        $oldRules = [];
+        $transaction = $this->casbinRule->getDb()->beginTransaction();
+        try {
+            $oldRules = $this->_removeFilteredPolicy($sec, $ptype, $fieldIndex, ...$fieldValues);
+            $this->addPolicies($sec, $ptype, $newRules);
+            $transaction->commit();
+        } catch (\Exception $e) {
+            $transaction->rollBack();
+            throw $e;
+        }
+
+        return $oldRules;
+    }
+
+    /**
+     * Filter the rule.
+     *
+     * @param array $rule
+     * @return array
+     */
+    public function filterRule(array $rule): array
+    {
+        $rule = array_values($rule);
+
+        $i = count($rule) - 1;
+        for (; $i >= 0; $i--) {
+            if ($rule[$i] != "" && !is_null($rule[$i])) {
+                break;
+            }
+        }
+
+        return array_slice($rule, 0, $i + 1);
     }
 
     /**
