@@ -1,6 +1,6 @@
 # Yii-Permission
 
-[![Build Status](https://travis-ci.org/php-casbin/yii-permission.svg?branch=master)](https://travis-ci.org/php-casbin/yii-permission)
+[![Build Status](https://github.com/php-casbin/yii-permission/actions/workflows/build.yml/badge.svg?branch=master)](https://github.com/php-casbin/yii-permission/actions/workflows/build.yml)
 [![Coverage Status](https://coveralls.io/repos/github/php-casbin/yii-permission/badge.svg)](https://coveralls.io/github/php-casbin/yii-permission)
 [![Latest Stable Version](https://poser.pugx.org/casbin/yii-permission/v/stable)](https://packagist.org/packages/casbin/yii-permission)
 [![Total Downloads](https://poser.pugx.org/casbin/yii-permission/downloads)](https://packagist.org/packages/casbin/yii-permission)

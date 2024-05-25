@@ -382,7 +382,7 @@ class AdapterTest extends TestCase
     /**
      * This method is called before each test.
      */
-    protected function setUp()/* The :void return type declaration that should be here would cause a BC issue */
+    protected function setUp(): void/* The :void return type declaration that should be here would cause a BC issue */
     {
         if (!$this->app) {
             $this->refreshApplication();
@@ -394,7 +394,7 @@ class AdapterTest extends TestCase
     /**
      * This method is called after each test.
      */
-    protected function tearDown()/* The :void return type declaration that should be here would cause a BC issue */
+    protected function tearDown(): void/* The :void return type declaration that should be here would cause a BC issue */
     {
     }
 
