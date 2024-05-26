@@ -23,7 +23,7 @@
         "casbin/casbin": "~3.1"
     },
     "require-dev": {
-        "phpunit/phpunit": "~7.0",
+        "phpunit/phpunit": "~7.0|~8.0|~9.0|~10.5",
         "php-coveralls/php-coveralls": "^2.1",
         "yiisoft/yii2-app-basic": "~2.0.14"
     },
@@ -42,5 +42,10 @@
             "type": "composer",
             "url": "https://asset-packagist.org"
         }
-    ]
+    ],
+    "config": {
+        "allow-plugins": {
+            "yiisoft/yii2-composer": true
+        }
+    }
 }
