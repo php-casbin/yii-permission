@@ -244,7 +244,7 @@ public function behaviors()
 }
 ```
 
-**Note:** Additionally,You can also configure a `denyCallback` for each `policy`, which will be invoked when the user does not meet the required permission. This callback takes precedence. The configuration is similar to Yii's official [AccessControl](https://www.yiiframework.com/doc/guide/2.0/zh-cn/security-authorization#access-control-filter).
+**Note:** Additionally,You can also configure a `denyCallback` for each `policy`, which will be invoked when the user does not meet the required permission. This callback takes precedence. The configuration is similar to Yii's official [AccessControl](https://www.yiiframework.com/doc/guide/2.0/en/security-authorization#access-control-filter).
 
 See [Casbin API](https://casbin.org/docs/en/management-api) for more APIs.
 
