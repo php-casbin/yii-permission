@@ -188,6 +188,64 @@ Determines whether a user has a permission.
 $permission->hasPermissionForUser('eve', 'articles', 'read');  // true or false
 ```
 
+### Using Yii Authorization
+
+It allows you to integrate Yii's authorization with the Casbin permission management system. 
+
+**(1) AccessChecker**
+
+Add the accessChecker configuration in your application's `config/web.php` file:
+
+```php
+$config = [
+    'components' => [
+        'user' => [
+            ...
+            'accessChecker' => 'yii\permission\components\PermissionChecker',
+        ]
+];
+```
+
+Once configured, you can use the `can()` method to check if a user has permission to perform certain actions:
+
+```php
+$user->can('acrticles,read');
+```
+
+**(2) Behaviors**
+
+The `PermissionControl` behavior allows you to enforce permission checks at the controller level. Add the PermissionControl behavior to your controller's behaviors() method:
+
+```php
+public function behaviors()
+{
+    return [
+        'permission' => [
+            'class' => \yii\permission\components\PermissionControl::class,
+            'user' => $user, // optional, defaults to \Yii::$app->user
+            'only' => ['read-articles', 'write-articles'],
+            'policy' => [
+                [
+                    'allow' => true,
+                    'actions' => ['read-articles'],
+                    'enforce' => ['articles', 'read']
+                ],
+                [
+                    'allow' => true,
+                    'actions' => ['write-articles'],
+                    'enforce' => ['articles', 'write']
+                ]
+            ],
+            'denyCallback' => function ($policy, $action) {
+                // custom action when access is denied
+            } // optional, defaults to throwing an exception
+        ]
+    ];
+}
+```
+
+**Note:** Additionally,You can also configure a `denyCallback` for each `policy`, which will be invoked when the user does not meet the required permission. This callback takes precedence. The configuration is similar to Yii's official [AccessControl](https://www.yiiframework.com/doc/guide/2.0/zh-cn/security-authorization#access-control-filter).
+
 See [Casbin API](https://casbin.org/docs/en/management-api) for more APIs.
 
 ## Define your own model.conf
