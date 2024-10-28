@@ -5,6 +5,8 @@ namespace yii\permission;
 use yii\base\Component;
 use Casbin\Model\Model;
 use Casbin\Enforcer;
+use Casbin\Log\Log;
+use Casbin\Log\Logger\DefaultLogger;
 use yii\permission\models\CasbinRule;
 use Yii;
 
@@ -23,6 +25,8 @@ class Permission extends Component
 
     public $config = [];
 
+    public $logger = null;
+
     public function __construct($config = [])
     {
         $this->config = $this->mergeConfig(
@@ -37,6 +41,16 @@ class Permission extends Component
             $this->model->loadModel($this->config['model']['config_file_path']);
         } elseif ('text' == $this->config['model']['config_type']) {
             $this->model->loadModelFromText($this->config['model']['config_text']);
+        }
+
+        if ($logger = $this->config['log']['logger']) {
+            if ($logger === 'log') {
+                $this->logger = new DefaultLogger();
+            } else {
+                $this->logger = new DefaultLogger(Yii::$container->get($logger));
+            }
+
+            Log::setLogger($this->logger);
         }
     }
 
@@ -68,7 +82,7 @@ class Permission extends Component
     {
         if ($newInstance || is_null($this->enforcer)) {
             $this->init();
-            $this->enforcer = new Enforcer($this->model, $this->adapter);
+            $this->enforcer = new Enforcer($this->model, $this->adapter, $this->logger, !is_null($this->logger));
         }
 
         return $this->enforcer;

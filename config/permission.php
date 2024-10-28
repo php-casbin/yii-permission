@@ -14,6 +14,14 @@ return [
         'config_text' => '',
     ],
 
+    // Yii-casbin logger.
+   'log' => [
+        // changes whether YiiPermission will log messages to the Logger.
+        'enabled' => false,
+        // Casbin Logger, Supported: \Psr\Log\LoggerInterface|string
+        'logger' => 'log',
+    ],
+
     // Yii-casbin adapter .
     'adapter' => \yii\permission\Adapter::class,
 
