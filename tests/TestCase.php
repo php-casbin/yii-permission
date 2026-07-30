@@ -1,87 +1,117 @@
 <?php
 
-namespace yii\permission\tests;
+namespace Yii\Permission\Tests;
 
-use Yii;
 use PHPUnit\Framework\TestCase as BaseTestCase;
-use yii\permission\models\CasbinRule;
-use yii\web\Application;
+use Yii\Permission\AccessChecker;
+use Casbin\Enforcer;
+use Yii\Permission\Models\CasbinRule;
+use Yiisoft\Db\Sqlite\Connection;
+use Yiisoft\Db\Connection\ConnectionInterface;
+use Psr\Container\ContainerInterface;
+use Yiisoft\Yii\Runner\Http\HttpApplicationRunner;
+use Yiisoft\Yii\Http\Application;
+use Yiisoft\Db\Migration\Migrator;
+use Yiisoft\Db\Migration\Informer\NullMigrationInformer;
+use Yii\Permission\Migrations\M240729000000CreateCasbinRuleTable;
+use Composer\Factory;
+use Composer\IO\NullIO;
+use Yiisoft\Config\Composer\MergePlanProcess;
 
-class TestCase extends BaseTestCase
+abstract class TestCase extends BaseTestCase
 {
-    protected $app;
+    public static ?Connection $dbConnection = null;
+    protected ?ContainerInterface $container = null;
+    protected ?Application $application = null;
+    protected ?HttpApplicationRunner $runner = null;
 
     public function createApplication()
     {
-        $config = require __DIR__ . '/../vendor/yiisoft/yii2-app-basic/config/web.php';
-        $config['components']['permission'] = require __DIR__ . '/../config/permission.php';
+        $rootPath = dirname(__DIR__);
+        $appPath = $rootPath . '/vendor/yiisoft/app';
 
-        $config['components']['db']['dsn'] = 'mysql:host=' . $this->env('DB_HOST', '127.0.0.1') . ';port=' . $this->env('DB_PORT', '3306') . ';dbname=' . $this->env('DB_DATABASE', 'casbin');
-        $config['components']['db']['username'] = $this->env('DB_USERNAME', 'root');
-        $config['components']['db']['password'] = $this->env('DB_PASSWORD', '');
+        // 1. Copy the dedicated test di configuration file directly to the app auto-scan path.
+        copy($rootPath . '/tests/config/di.php', $appPath . '/config/common/di/permission.php');
 
-        return new Application($config);
+        putenv('COMPOSER=' . $appPath . '/composer.json');
+
+        $composer = Factory::create(new NullIO(), $appPath . '/composer.json');
+        $composer->getConfig()->merge(['config' => ['vendor-dir' => $rootPath . '/vendor']]);
+        new MergePlanProcess($composer);
+
+        // 2. Instantiate native Runner, which automatically creates native container and Application.
+        $this->runner = new HttpApplicationRunner(
+            rootPath: $appPath,
+            debug: true,
+            checkEvents: false,
+            diGroup: 'di',
+            paramsGroup: 'params',
+            vendorDirectory: '../../../vendor'
+        );
+
+        $this->container = $this->runner->getContainer();
+        $this->application = $this->container->get(Application::class);
+
+        return $this->application;
     }
 
-    /**
-     * init table.
-     */
+    public function getEnforcer(): Enforcer
+    {
+        return $this->container->get(Enforcer::class);
+    }
+
+    public function getAccessChecker(): AccessChecker
+    {
+        return $this->container->get(AccessChecker::class);
+    }
+
     protected function initTable()
     {
-        $db = CasbinRule::getDb();
-        $tableName = CasbinRule::tableName();
-        $table = $db->getTableSchema($tableName);
-        if ($table) {
-            $db->createCommand()->dropTable($tableName)->execute();
+        $db = $this->container->get(ConnectionInterface::class);
+        self::$dbConnection = $db;
+        $ar = new CasbinRule($db, 'casbin_rule');
+        $tableName = $ar->tableName();
+        $schema = $db->getSchema();
+        $table = $schema->getTableSchema($tableName);
+        $migrator = new Migrator(
+            $db,
+            new NullMigrationInformer()
+        );
+
+        $migration = new M240729000000CreateCasbinRuleTable();
+
+        if ($table !== null) {
+            $migrator->down($migration);
         }
 
-        Yii::$app->permission->init();
+        $migrator->up($migration);
 
-        Yii::$app->db->createCommand()->batchInsert(
+        $db->createCommand()->insertBatch(
             $tableName,
-            ['ptype', 'v0', 'v1', 'v2'],
             [
                 ['p', 'alice', 'data1', 'read'],
                 ['p', 'bob', 'data2', 'write'],
                 ['p', 'data2_admin', 'data2', 'read'],
                 ['p', 'data2_admin', 'data2', 'write'],
                 ['g', 'alice', 'data2_admin', null],
-            ]
+            ],
+            ['ptype', 'v0', 'v1', 'v2']
         )->execute();
     }
 
-    /**
-     * Refresh the application instance.
-     */
     protected function refreshApplication()
     {
-        $this->app = $this->createApplication();
-    }
-
-    /**
-     * This method is called before each test.
-     */
-    protected function setUp(): void/* The :void return type declaration that should be here would cause a BC issue */
-    {
-        if (!$this->app) {
-            $this->refreshApplication();
-        }
-
+        $this->createApplication();
         $this->initTable();
     }
 
-    /**
-     * This method is called after each test.
-     */
-    protected function tearDown(): void/* The :void return type declaration that should be here would cause a BC issue */ {}
-
-    protected function env($key, $default = null)
+    protected function setUp(): void
     {
-        $value = getenv($key);
-        if (is_null($default)) {
-            return $value;
-        }
+        $this->createApplication();
+        $this->initTable();
+    }
 
-        return false === $value ? $default : $value;
+    protected function tearDown(): void
+    {
     }
 }

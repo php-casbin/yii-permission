@@ -1,79 +1,109 @@
 <?php
 
-namespace yii\permission\tests;
+namespace Yii\Permission\Tests;
 
-use Yii;
 use Casbin\Persist\Adapters\Filter;
 use Casbin\Exceptions\InvalidFilterTypeException;
-use yii\db\ActiveQueryInterface;
+use Yiisoft\ActiveRecord\ActiveQueryInterface;
 
 class AdapterTest extends TestCase
 {
+    public function testInit()
+    {
+        $enforcer = $this->getEnforcer();
+        $this->assertInstanceOf(\Casbin\Enforcer::class, $enforcer);
+        $this->assertTrue($enforcer->enforce('alice', 'data1', 'read'));
+    }
+
+    public function testDatabaseCustomConfiguration()
+    {
+        $params = [
+            'casbin/yii-permission' => [
+                'database' => [
+                    'connection' => self::$dbConnection,
+                    'casbin_rules_table' => '{{%custom_casbin_rule}}',
+                ]
+            ]
+        ];
+
+        $diDefinitions = require dirname(__DIR__) . '/config/di.php';
+        $casbinRule = $diDefinitions[\Yii\Permission\Models\CasbinRule::class]($this->container);
+
+        $this->assertEquals('{{%custom_casbin_rule}}', $casbinRule->tableName());
+        $this->assertSame(self::$dbConnection, $casbinRule->db());
+    }
+
     public function testEnforce()
     {
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data1', 'read'));
+        $enforcer = $this->getEnforcer();
+        $this->assertTrue($enforcer->enforce('alice', 'data1', 'read'));
 
-        $this->assertFalse(Yii::$app->permission->enforce('bob', 'data1', 'read'));
-        $this->assertTrue(Yii::$app->permission->enforce('bob', 'data2', 'write'));
+        $this->assertFalse($enforcer->enforce('bob', 'data1', 'read'));
+        $this->assertTrue($enforcer->enforce('bob', 'data2', 'write'));
 
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data2', 'read'));
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data2', 'write'));
+        $this->assertTrue($enforcer->enforce('alice', 'data2', 'read'));
+        $this->assertTrue($enforcer->enforce('alice', 'data2', 'write'));
     }
 
     public function testAddPolicy()
     {
-        $this->assertFalse(Yii::$app->permission->enforce('eve', 'data3', 'read'));
-        Yii::$app->permission->addPermissionForUser('eve', 'data3', 'read');
-        $this->assertTrue(Yii::$app->permission->enforce('eve', 'data3', 'read'));
+        $enforcer = $this->getEnforcer();
+        $this->assertFalse($enforcer->enforce('eve', 'data3', 'read'));
+        $enforcer->addPermissionForUser('eve', 'data3', 'read');
+        $this->assertTrue($enforcer->enforce('eve', 'data3', 'read'));
     }
 
     public function testAddPolicies()
     {
+        $enforcer = $this->getEnforcer();
         $policies = [
             ['u1', 'd1', 'read'],
             ['u2', 'd2', 'read'],
             ['u3', 'd3', 'read'],
         ];
-        Yii::$app->permission->clearPolicy();
-        $this->assertEquals([], Yii::$app->permission->getPolicy());
-        Yii::$app->permission->addPolicies($policies);
-        $this->assertEquals($policies, Yii::$app->permission->getPolicy());
+        $enforcer->clearPolicy();
+        $this->assertEquals([], $enforcer->getPolicy());
+        $enforcer->addPolicies($policies);
+        $this->assertEquals($policies, $enforcer->getPolicy());
     }
 
     public function testSavePolicy()
     {
-        $this->assertFalse(Yii::$app->permission->enforce('alice', 'data4', 'read'));
+        $enforcer = $this->getEnforcer();
+        $this->assertFalse($enforcer->enforce('alice', 'data4', 'read'));
 
-        $model = Yii::$app->permission->getModel();
+        $model = $enforcer->getModel();
         $model->clearPolicy();
         $model->addPolicy('p', 'p', ['alice', 'data4', 'read']);
 
-        $adapter = Yii::$app->permission->getAdapter();
+        $adapter = $enforcer->getAdapter();
         $adapter->savePolicy($model);
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data4', 'read'));
+        $this->assertTrue($enforcer->enforce('alice', 'data4', 'read'));
     }
 
     public function testRemovePolicy()
     {
-        $this->assertFalse(Yii::$app->permission->enforce('alice', 'data5', 'read'));
+        $enforcer = $this->getEnforcer();
+        $this->assertFalse($enforcer->enforce('alice', 'data5', 'read'));
 
-        Yii::$app->permission->addPermissionForUser('alice', 'data5', 'read');
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data5', 'read'));
+        $enforcer->addPermissionForUser('alice', 'data5', 'read');
+        $this->assertTrue($enforcer->enforce('alice', 'data5', 'read'));
 
-        Yii::$app->permission->deletePermissionForUser('alice', 'data5', 'read');
-        $this->assertFalse(Yii::$app->permission->enforce('alice', 'data5', 'read'));
+        $enforcer->deletePermissionForUser('alice', 'data5', 'read');
+        $this->assertFalse($enforcer->enforce('alice', 'data5', 'read'));
     }
 
     public function testRemovePolicies()
     {
+        $enforcer = $this->getEnforcer();
         $this->assertEquals([
             ['alice', 'data1', 'read'],
             ['bob', 'data2', 'write'],
             ['data2_admin', 'data2', 'read'],
             ['data2_admin', 'data2', 'write'],
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
-        Yii::$app->permission->removePolicies([
+        $enforcer->removePolicies([
             ['data2_admin', 'data2', 'read'],
             ['data2_admin', 'data2', 'write'],
         ]);
@@ -81,41 +111,43 @@ class AdapterTest extends TestCase
         $this->assertEquals([
             ['alice', 'data1', 'read'],
             ['bob', 'data2', 'write']
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
     }
 
     public function testRemoveFilteredPolicy()
     {
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data1', 'read'));
-        Yii::$app->permission->removeFilteredPolicy(1, 'data1');
-        $this->assertFalse(Yii::$app->permission->enforce('alice', 'data1', 'read'));
-        $this->assertTrue(Yii::$app->permission->enforce('bob', 'data2', 'write'));
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data2', 'read'));
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data2', 'write'));
-        Yii::$app->permission->removeFilteredPolicy(1, 'data2', 'read');
-        $this->assertTrue(Yii::$app->permission->enforce('bob', 'data2', 'write'));
-        $this->assertFalse(Yii::$app->permission->enforce('alice', 'data2', 'read'));
-        $this->assertTrue(Yii::$app->permission->enforce('alice', 'data2', 'write'));
-        Yii::$app->permission->removeFilteredPolicy(2, 'write');
-        $this->assertFalse(Yii::$app->permission->enforce('bob', 'data2', 'write'));
-        $this->assertFalse(Yii::$app->permission->enforce('alice', 'data2', 'write'));
+        $enforcer = $this->getEnforcer();
+        $this->assertTrue($enforcer->enforce('alice', 'data1', 'read'));
+        $enforcer->removeFilteredPolicy(1, 'data1');
+        $this->assertFalse($enforcer->enforce('alice', 'data1', 'read'));
+        $this->assertTrue($enforcer->enforce('bob', 'data2', 'write'));
+        $this->assertTrue($enforcer->enforce('alice', 'data2', 'read'));
+        $this->assertTrue($enforcer->enforce('alice', 'data2', 'write'));
+        $enforcer->removeFilteredPolicy(1, 'data2', 'read');
+        $this->assertTrue($enforcer->enforce('bob', 'data2', 'write'));
+        $this->assertFalse($enforcer->enforce('alice', 'data2', 'read'));
+        $this->assertTrue($enforcer->enforce('alice', 'data2', 'write'));
+        $enforcer->removeFilteredPolicy(2, 'write');
+        $this->assertFalse($enforcer->enforce('bob', 'data2', 'write'));
+        $this->assertFalse($enforcer->enforce('alice', 'data2', 'write'));
     }
 
     public function testUpdatePolicy()
     {
+        $enforcer = $this->getEnforcer();
         $this->assertEquals([
             ['alice', 'data1', 'read'],
             ['bob', 'data2', 'write'],
             ['data2_admin', 'data2', 'read'],
             ['data2_admin', 'data2', 'write'],
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
-        Yii::$app->permission->updatePolicy(
+        $enforcer->updatePolicy(
             ['alice', 'data1', 'read'],
             ['alice', 'data1', 'write']
         );
 
-        Yii::$app->permission->updatePolicy(
+        $enforcer->updatePolicy(
             ['bob', 'data2', 'write'],
             ['bob', 'data2', 'read']
         );
@@ -125,17 +157,18 @@ class AdapterTest extends TestCase
             ['bob', 'data2', 'read'],
             ['data2_admin', 'data2', 'read'],
             ['data2_admin', 'data2', 'write'],
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
     }
 
     public function testUpdatePolicies()
     {
+        $enforcer = $this->getEnforcer();
         $this->assertEquals([
             ['alice', 'data1', 'read'],
             ['bob', 'data2', 'write'],
             ['data2_admin', 'data2', 'read'],
             ['data2_admin', 'data2', 'write'],
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
         $oldPolicies = [
             ['alice', 'data1', 'read'],
@@ -146,14 +179,14 @@ class AdapterTest extends TestCase
             ['bob', 'data2', 'read']
         ];
 
-        Yii::$app->permission->updatePolicies($oldPolicies, $newPolicies);
+        $enforcer->updatePolicies($oldPolicies, $newPolicies);
 
         $this->assertEquals([
             ['alice', 'data1', 'write'],
             ['bob', 'data2', 'read'],
             ['data2_admin', 'data2', 'read'],
             ['data2_admin', 'data2', 'write'],
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
     }
 
     public function arrayEqualsWithoutOrder(array $expected, array $actual)
@@ -169,15 +202,16 @@ class AdapterTest extends TestCase
 
     public function testUpdateFilteredPolicies()
     {
+        $enforcer = $this->getEnforcer();
         $this->assertEquals([
             ['alice', 'data1', 'read'],
             ['bob', 'data2', 'write'],
             ['data2_admin', 'data2', 'read'],
             ['data2_admin', 'data2', 'write'],
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
-        Yii::$app->permission->updateFilteredPolicies([["alice", "data1", "write"]], 0, "alice", "data1", "read");
-        Yii::$app->permission->updateFilteredPolicies([["bob", "data2", "read"]], 0, "bob", "data2", "write");
+        $enforcer->updateFilteredPolicies([["alice", "data1", "write"]], 0, "alice", "data1", "read");
+        $enforcer->updateFilteredPolicies([["bob", "data2", "read"]], 0, "bob", "data2", "write");
 
         $policies = [
             ['data2_admin', 'data2', 'read'],
@@ -185,18 +219,19 @@ class AdapterTest extends TestCase
             ['alice', 'data1', 'write'],
             ['bob', 'data2', 'read'],
         ];
-        $this->arrayEqualsWithoutOrder($policies, Yii::$app->permission->getPolicy());
+        $this->arrayEqualsWithoutOrder($policies, $enforcer->getPolicy());
 
         // test use updateFilteredPolicies to update all policies of a user
         $this->initTable();
         $this->refreshApplication();
+        $enforcer = $this->getEnforcer();
 
         $policies = [
             ['alice', 'data2', 'write'],
             ['bob', 'data1', 'read']
         ];
 
-        Yii::$app->permission->addPolicies($policies);
+        $enforcer->addPolicies($policies);
         $this->arrayEqualsWithoutOrder([
             ['alice', 'data1', 'read'],
             ['bob', 'data2', 'write'],
@@ -204,10 +239,10 @@ class AdapterTest extends TestCase
             ['data2_admin', 'data2', 'write'],
             ['alice', 'data2', 'write'],
             ['bob', 'data1', 'read']
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
-        Yii::$app->permission->updateFilteredPolicies([['alice', 'data1', 'write'], ['alice', 'data2', 'read']], 0, 'alice');
-        Yii::$app->permission->updateFilteredPolicies([['bob', 'data1', 'write'], ["bob", "data2", "read"]], 0, 'bob');
+        $enforcer->updateFilteredPolicies([['alice', 'data1', 'write'], ['alice', 'data2', 'read']], 0, 'alice');
+        $enforcer->updateFilteredPolicies([['bob', 'data1', 'write'], ["bob", "data2", "read"]], 0, 'bob');
 
         $policies = [
             ['alice', 'data1', 'write'],
@@ -218,17 +253,18 @@ class AdapterTest extends TestCase
             ['data2_admin', 'data2', 'write']
         ];
 
-        $this->arrayEqualsWithoutOrder($policies, Yii::$app->permission->getPolicy());
+        $this->arrayEqualsWithoutOrder($policies, $enforcer->getPolicy());
 
         // test if $fieldValues contains empty string
         $this->initTable();
         $this->refreshApplication();
+        $enforcer = $this->getEnforcer();
 
         $policies = [
             ['alice', 'data2', 'write'],
             ['bob', 'data1', 'read']
         ];
-        Yii::$app->permission->addPolicies($policies);
+        $enforcer->addPolicies($policies);
 
         $this->assertEquals([
             ['alice', 'data1', 'read'],
@@ -237,10 +273,10 @@ class AdapterTest extends TestCase
             ['data2_admin', 'data2', 'write'],
             ['alice', 'data2', 'write'],
             ['bob', 'data1', 'read']
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
-        Yii::$app->permission->updateFilteredPolicies([['alice', 'data1', 'write'], ['alice', 'data2', 'read']], 0, 'alice', '', '');
-        Yii::$app->permission->updateFilteredPolicies([['bob', 'data1', 'write'], ["bob", "data2", "read"]], 0, 'bob', '', '');
+        $enforcer->updateFilteredPolicies([['alice', 'data1', 'write'], ['alice', 'data2', 'read']], 0, 'alice', '', '');
+        $enforcer->updateFilteredPolicies([['bob', 'data1', 'write'], ["bob", "data2", "read"]], 0, 'bob', '', '');
 
         $policies = [
             ['alice', 'data1', 'write'],
@@ -251,17 +287,18 @@ class AdapterTest extends TestCase
             ['data2_admin', 'data2', 'write']
         ];
 
-        $this->arrayEqualsWithoutOrder($policies, Yii::$app->permission->getPolicy());
+        $this->arrayEqualsWithoutOrder($policies, $enforcer->getPolicy());
 
         // test if $fieldIndex is not zero
         $this->initTable();
         $this->refreshApplication();
+        $enforcer = $this->getEnforcer();
 
         $policies = [
             ['alice', 'data2', 'write'],
             ['bob', 'data1', 'read']
         ];
-        Yii::$app->permission->addPolicies($policies);
+        $enforcer->addPolicies($policies);
 
         $this->assertEquals([
             ['alice', 'data1', 'read'],
@@ -270,10 +307,10 @@ class AdapterTest extends TestCase
             ['data2_admin', 'data2', 'write'],
             ['alice', 'data2', 'write'],
             ['bob', 'data1', 'read']
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
-        Yii::$app->permission->updateFilteredPolicies([['alice', 'data1', 'edit'], ['bob', 'data1', 'edit']], 2, 'read');
-        Yii::$app->permission->updateFilteredPolicies([['alice', 'data2', 'read'], ["bob", "data2", "read"]], 2, 'write');
+        $enforcer->updateFilteredPolicies([['alice', 'data1', 'edit'], ['bob', 'data1', 'edit']], 2, 'read');
+        $enforcer->updateFilteredPolicies([['alice', 'data2', 'read'], ["bob", "data2", "read"]], 2, 'write');
 
         $policies = [
             ['alice', 'data1', 'edit'],
@@ -282,20 +319,21 @@ class AdapterTest extends TestCase
             ['bob', 'data2', 'read'],
         ];
 
-        $this->arrayEqualsWithoutOrder($policies, Yii::$app->permission->getPolicy());
+        $this->arrayEqualsWithoutOrder($policies, $enforcer->getPolicy());
     }
 
     public function testLoadFilteredPolicy()
     {
-        Yii::$app->permission->clearPolicy();
-        $adapter = Yii::$app->permission->getAdapter();
+        $enforcer = $this->getEnforcer();
+        $enforcer->clearPolicy();
+        $adapter = $enforcer->getAdapter();
         $adapter->setFiltered(true);
-        $this->assertEquals([], Yii::$app->permission->getPolicy());
+        $this->assertEquals([], $enforcer->getPolicy());
 
         // invalid filter type
         try {
             $filter = ['alice', 'data1', 'read'];
-            Yii::$app->permission->loadFilteredPolicy($filter);
+            $enforcer->loadFilteredPolicy($filter);
             $exception = InvalidFilterTypeException::class;
             $this->fail("Expected exception $exception not thrown");
         } catch (InvalidFilterTypeException $exception) {
@@ -304,26 +342,26 @@ class AdapterTest extends TestCase
 
         // string
         $filter = "v0 = 'bob'";
-        Yii::$app->permission->loadFilteredPolicy($filter);
+        $enforcer->loadFilteredPolicy($filter);
         $this->assertEquals([
             ['bob', 'data2', 'write']
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
         // Filter
         $filter = new Filter(['v2'], ['read']);
-        Yii::$app->permission->loadFilteredPolicy($filter);
+        $enforcer->loadFilteredPolicy($filter);
         $this->assertEquals([
             ['alice', 'data1', 'read'],
             ['data2_admin', 'data2', 'read'],
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
 
         // Closure
-        Yii::$app->permission->loadFilteredPolicy(function (ActiveQueryInterface &$entity) {
+        $enforcer->loadFilteredPolicy(function (ActiveQueryInterface &$entity) {
             $entity->where(['v1' => 'data1']);
         });
 
         $this->assertEquals([
             ['alice', 'data1', 'read'],
-        ], Yii::$app->permission->getPolicy());
+        ], $enforcer->getPolicy());
     }
 }
