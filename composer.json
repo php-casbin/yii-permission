@@ -10,43 +10,57 @@
         "casbin-adapter",
         "database"
     ],
-    "description": "Use Casbin in Yii2 PHP Framework, Casbin is a powerful and efficient open-source access control library.",
+    "description": "Use Casbin in Yii3 PHP Framework, Casbin is a powerful and efficient open-source access control library.",
     "authors": [
         {
-            "name": "TechLee",
-            "email": "techlee@qq.com"
+            "name": "Lee",
+            "email": "leeqvip@gmail.com"
         }
     ],
     "license": "Apache-2.0",
     "require": {
-        "php": ">=8.0",
-        "yiisoft/yii2": "~2.0.49",
-        "casbin/casbin": "~4.0"
+        "php": ">=8.2",
+        "casbin/casbin": "^4.0",
+        "yiisoft/config": "^1.0",
+        "yiisoft/di": "^1.0",
+        "yiisoft/db": "^2.0",
+        "yiisoft/active-record": "^1.0 || ^2.0",
+        "yiisoft/access": "^1.0 || ^2.0",
+        "psr/http-server-middleware": "^1.0",
+        "psr/http-message": "^1.0 || ^2.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "~9.0",
-        "php-coveralls/php-coveralls": "^2.1",
-        "yiisoft/yii2-app-basic": "~2.0.49"
+        "phpunit/phpunit": "^9.5 || ^10.0",
+        "yiisoft/db-sqlite": "^2.0",
+        "yiisoft/db-mysql": "^2.0",
+        "yiisoft/db-migration": "^1.0 || ^2.0",
+        "yiisoft/app": "^1.4",
+        "yiisoft/user": "^2.0",
+        "composer/composer": "^2.10"
+    },
+    "suggest": {
+        "yiisoft/user": "Required for automatically retrieving current logged-in user ID via CurrentUser in middlewares."
     },
     "autoload": {
         "psr-4": {
-            "yii\\permission\\": "src/"
+            "Yii\\Permission\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "yii\\permission\\tests\\": "tests/"
+            "Yii\\Permission\\Tests\\": "tests/"
         }
     },
-    "repositories": [
-        {
-            "type": "composer",
-            "url": "https://asset-packagist.org"
+    "extra": {
+        "config-plugin": {
+            "params": "config/params.php",
+            "di": "config/di.php",
+            "db-migration": "src/migrations"
         }
-    ],
+    },
     "config": {
         "allow-plugins": {
-            "yiisoft/yii2-composer": true
+            "yiisoft/config": true
         }
     }
 }

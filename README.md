@@ -6,252 +6,314 @@
 [![Total Downloads](https://poser.pugx.org/casbin/yii-permission/downloads)](https://packagist.org/packages/casbin/yii-permission)
 [![License](https://poser.pugx.org/casbin/yii-permission/license)](https://packagist.org/packages/casbin/yii-permission)
 
-Use [Casbin](https://github.com/php-casbin/php-casbin) in Yii 2.0 PHP Framework.
+An authorization library for the Yii 3.0 PHP Framework, based on [Casbin](https://github.com/php-casbin/php-casbin).
+
+* [Installation](#installation)
+  * [Getting Composer package](#getting-composer-package)
+  * [Configuring application](#configuring-application)
+  * [Database Migration](#database-migration)
+* [Usage](#usage)
+  * [Quick start](#quick-start)
+  * [Using Enforcer Api](#using-enforcer-api)
+  * [Using a middleware](#using-a-middleware)
+    * [Basic Enforcer Middleware](#basic-enforcer-middleware)
+    * [HTTP Request Middleware (RESTful is also supported)](#http-request-middleware--restful-is-also-supported-)
+  * [Using Yii3 AccessChecker ($user->can())](#using-yii3-accesschecker-user-can)
+* [Define your own model.conf](#define-your-own-modelconf)
+* [Learning Casbin](#learning-casbin)
 
 ## Installation
 
 ### Getting Composer package
 
-Require this package in the `composer.json` of your Yii 2.0 project. This will download the package.
+Require this package in the `composer.json` of your Yii 3.0 project. This will download the package.
 
-```
+```bash
 composer require casbin/yii-permission
 ```
 
 ### Configuring application
 
-To use this extension, you have to configure the `Casbin` class in your application configuration:
+Yii-Permission automatically registers its parameters and DI container definitions via `yiisoft/config`.
+
+You can customize parameters in your project's `config/params.php`:
 
 ```php
 return [
-    //....
-    'components' => [
-        'permission' => [
-            'class' => \yii\permission\Permission::class,
-            
-            /*
-             * Casbin model setting.
-             */
-            'model' => [
-                // Available Settings: "file", "text"
-                'config_type' => 'file',
-                'config_file_path' => '/path/to/casbin-model.conf',
-                'config_text' => '',
-            ],
-
-            // Casbin adapter .
-            'adapter' => \yii\permission\Adapter::class,
-
-            /*
-             * Casbin database setting.
-             */
-            'database' => [
-                // Database connection for following tables.
-                'connection' => '',
-                // CasbinRule tables and model.
-                'casbin_rules_table' => '{{%casbin_rule}}',
-            ],
+    'casbin/yii-permission' => [
+        'model' => [
+            // Available Settings: "file", "text"
+            'config_type' => 'file',
+            'config_file_path' => dirname(__DIR__) . '/config/casbin-basic-model.conf',
+            'config_text' => '',
         ],
-    ]
+        'database' => [
+            // Connection service ID in DI container, defaults to Yiisoft\Db\Connection\ConnectionInterface::class
+            'connection' => null,
+            'casbin_rules_table' => 'casbin_rule',
+        ],
+        'log' => [
+            'enabled' => false,
+            'logger' => null,
+        ],
+        'adapter' => \Yii\Permission\Adapter::class,
+    ],
 ];
 ```
 
+### Database Migration
+
+`casbin/yii-permission` automatically registers its database migration path (`src/migrations`) via `yiisoft/config` under `"db-migration"`.
+
+Run the Yii 3.0 database migration command to create the `casbin_rule` table:
+
+```bash
+./yii migrate/up
+```
+
+For custom or manual database setups, see the [Migration Class File](src/migrations/M240729000000CreateCasbinRuleTable.php) for the detailed `casbin_rule` table schema.
 
 ## Usage
 
 ### Quick start
 
-Once installed you can do stuff like this:
+In Yii 3.0, you can directly inject native `\Casbin\Enforcer` into your actions, controllers or services to get 100% IDE auto-completion and full type safety:
 
 ```php
+use Casbin\Enforcer;
+use Psr\Http\Message\ResponseInterface;
 
-$permission = \Yii::$app->permission;
+class UserController
+{
+    public function __construct(
+        private Enforcer $enforcer
+    ) {}
 
-// adds permissions to a user
-$permission->addPermissionForUser('eve', 'articles', 'read');
-// adds a role for a user.
-$permission->addRoleForUser('eve', 'writer');
-// adds permissions to a rule
-$permission->addPolicy('writer', 'articles','edit');
+    public function index(): ResponseInterface
+    {
+        // adds permissions to a user with full IDE autocomplete
+        $this->enforcer->addPermissionForUser('eve', 'articles', 'read');
 
-```
+        // adds a role for a user
+        $this->enforcer->addRoleForUser('eve', 'writer');
 
-You can check if a user has a permission like this:
+        // adds permissions to a policy
+        $this->enforcer->addPolicy('writer', 'articles', 'edit');
 
-```php
-// to check if a user has permission
-if ($permission->enforce("eve", "articles", "edit")) {
-    // permit eve to edit articles
-} else {
-    // deny the request, show an error
+        // checks permission
+        if ($this->enforcer->enforce('eve', 'articles', 'edit')) {
+            // permit eve to edit articles
+        } else {
+            // deny the request
+        }
+    }
 }
-
 ```
 
 ### Using Enforcer Api
 
-It provides a very rich api to facilitate various operations on the Policy:
+It provides a very rich API to facilitate various operations on the Policy:
 
 Gets all roles:
 
 ```php
-$permission->getAllRoles(); // ['writer', 'reader']
+$enforcer->getAllRoles(); // ['writer', 'reader']
 ```
 
-Gets all the authorization rules in the policy.:
+Gets all the authorization rules in the policy:
 
 ```php
-$permission->getPolicy();
+$enforcer->getPolicy();
 ```
 
-Gets the roles that a user has.
+Gets the roles that a user has:
 
 ```php
-$permission->getRolesForUser('eve'); // ['writer']
+$enforcer->getRolesForUser('eve'); // ['writer']
 ```
 
-Gets the users that has a role.
+Gets the users that have a role:
 
 ```php
-$permission->getUsersForRole('writer'); // ['eve']
+$enforcer->getUsersForRole('writer'); // ['eve']
 ```
 
-Determines whether a user has a role.
+Determines whether a user has a role:
 
 ```php
-$permission->hasRoleForUser('eve', 'writer'); // true or false
+$enforcer->hasRoleForUser('eve', 'writer'); // true or false
 ```
 
-Adds a role for a user.
+Adds a role for a user:
 
 ```php
-$permission->addRoleForUser('eve', 'writer');
+$enforcer->addRoleForUser('eve', 'writer');
 ```
 
-Adds a permission for a user or role.
-
-```php
-// to user
-$permission->addPermissionForUser('eve', 'articles', 'read');
-// to role
-$permission->addPermissionForUser('writer', 'articles','edit');
-```
-
-Deletes a role for a user.
-
-```php
-$permission->deleteRoleForUser('eve', 'writer');
-```
-
-Deletes all roles for a user.
-
-```php
-$permission->deleteRolesForUser('eve');
-```
-
-Deletes a role.
-
-```php
-$permission->deleteRole('writer');
-```
-
-Deletes a permission.
-
-```php
-$permission->deletePermission('articles', 'read'); // returns false if the permission does not exist (aka not affected).
-```
-
-Deletes a permission for a user or role.
-
-```php
-$permission->deletePermissionForUser('eve', 'articles', 'read');
-```
-
-Deletes permissions for a user or role.
+Adds a permission for a user or role:
 
 ```php
 // to user
-$permission->deletePermissionsForUser('eve');
+$enforcer->addPermissionForUser('eve', 'articles', 'read');
 // to role
-$permission->deletePermissionsForUser('writer');
+$enforcer->addPermissionForUser('writer', 'articles', 'edit');
 ```
 
-Gets permissions for a user or role.
+Deletes a role for a user:
 
 ```php
-$permission->getPermissionsForUser('eve'); // return array
+$enforcer->deleteRoleForUser('eve', 'writer');
 ```
 
-Determines whether a user has a permission.
+Deletes all roles for a user:
 
 ```php
-$permission->hasPermissionForUser('eve', 'articles', 'read');  // true or false
+$enforcer->deleteRolesForUser('eve');
 ```
 
-### Using Yii Authorization
-
-It allows you to integrate Yii's authorization with the Casbin permission management system. 
-
-**(1) AccessChecker**
-
-Add the accessChecker configuration in your application's `config/web.php` file:
+Deletes a role:
 
 ```php
-$config = [
-    'components' => [
-        'user' => [
-            ...
-            'accessChecker' => 'yii\permission\components\PermissionChecker',
-        ]
+$enforcer->deleteRole('writer');
+```
+
+Deletes a permission:
+
+```php
+$enforcer->deletePermission('articles', 'read'); // returns false if the permission does not exist (aka not affected).
+```
+
+Deletes a permission for a user or role:
+
+```php
+$enforcer->deletePermissionForUser('eve', 'articles', 'read');
+```
+
+Deletes permissions for a user or role:
+
+```php
+// to user
+$enforcer->deletePermissionsForUser('eve');
+// to role
+$enforcer->deletePermissionsForUser('writer');
+```
+
+Gets permissions for a user or role:
+
+```php
+$enforcer->getPermissionsForUser('eve'); // return array
+```
+
+Determines whether a user has a permission:
+
+```php
+$enforcer->hasPermissionForUser('eve', 'articles', 'read');  // true or false
+```
+
+See [Casbin API](https://casbin.apache.org/docs/management-api) for more APIs.
+
+### Using a middleware
+
+`casbin/yii-permission` provides two PSR-15 middlewares for HTTP route access control in Yii 3.0 applications.
+
+#### Basic Enforcer Middleware
+
+`\Yii\Permission\Middleware\EnforcerMiddleware` is used to check explicit permission parameters (e.g. resource and action). It provides an immutable `withParams(array $params)` method returning a cloned instance for safe route-level parameter binding.
+
+```php
+use Yii\Permission\Middleware\EnforcerMiddleware;
+use Yiisoft\Router\Route;
+
+// Checks if current user has permission on 'articles' resource with 'read' action
+Route::get('/articles')
+    ->action([ArticleController::class, 'index'])
+    ->middleware(
+        fn (EnforcerMiddleware $middleware) => $middleware->withParams(['articles', 'read'])
+    );
+```
+
+#### HTTP Request Middleware ( RESTful is also supported )
+
+`\Yii\Permission\Middleware\RequestMiddleware` automatically extracts the request **Path** as the resource and HTTP **Method** as the action (`$enforcer->enforce($userId, $path, $method)`).
+
+```php
+use Yii\Permission\Middleware\RequestMiddleware;
+use Yiisoft\Router\Group;
+use Yiisoft\Router\Route;
+
+// Automatically checks permission based on Request Path & HTTP Method
+Group::create('/api')
+    ->middleware(RequestMiddleware::class)
+    ->routes(
+        Route::get('/posts')->action([PostController::class, 'index']),
+        Route::post('/posts')->action([PostController::class, 'create'])
+    );
+```
+
+> **Note**: Both middlewares automatically fetch the current logged-in user ID via `Yiisoft\User\CurrentUser::getId()`. If your project needs automatic logged-in user resolution, you can install the `yiisoft/user` package:
+> ```bash
+> composer require yiisoft/user
+> ```
+> If `CurrentUser` is not available or the user is a guest, it falls back to the `user_id` request attribute or `'guest'`.
+
+### Using Yii3 AccessChecker ($user->can())
+
+`casbin/yii-permission` provides `\Yii\Permission\AccessChecker` implementing `Yiisoft\Access\AccessCheckerInterface`.
+
+#### 1. Register as `AccessCheckerInterface` in DI Container (`config/common/di/auth.php`)
+
+Bind `AccessCheckerInterface` to `AccessChecker` so that `Yiisoft\User\CurrentUser` uses Casbin under the hood:
+
+```php
+use Yiisoft\Access\AccessCheckerInterface;
+use Yii\Permission\AccessChecker;
+
+return [
+    AccessCheckerInterface::class => AccessChecker::class,
 ];
 ```
 
-Once configured, you can use the `can()` method to check if a user has permission to perform certain actions:
+#### 2. Check Permission via `$user->can()` in Controllers
+
+Once registered, you can use Yii 3.0's native `$user->can()` method directly:
 
 ```php
-$user->can('acrticles,read');
-```
+use Yiisoft\User\CurrentUser;
 
-**(2) Behaviors**
-
-The `PermissionControl` behavior allows you to enforce permission checks at the controller level. Add the PermissionControl behavior to your controller's behaviors() method:
-
-```php
-public function behaviors()
+final readonly class PostController
 {
-    return [
-        'permission' => [
-            'class' => \yii\permission\components\PermissionControl::class,
-            'user' => $user, // optional, defaults to \Yii::$app->user
-            'only' => ['read-articles', 'write-articles'],
-            'policy' => [
-                [
-                    'allow' => true,
-                    'actions' => ['read-articles'],
-                    'enforce' => ['articles', 'read']
-                ],
-                [
-                    'allow' => true,
-                    'actions' => ['write-articles'],
-                    'enforce' => ['articles', 'write']
-                ]
-            ],
-            'denyCallback' => function ($policy, $action) {
-                // custom action when access is denied
-            } // optional, defaults to throwing an exception
-        ]
-    ];
+    public function __construct(
+        private CurrentUser $user
+    ) {}
+
+    public function update(): ResponseInterface
+    {
+        // 1. Passing resource and action as separate arguments (Recommended for Casbin)
+        if ($this->user->can('articles', ['write'])) {
+            // Permission granted
+        }
+
+        // 2. Or using comma-separated string format
+        if ($this->user->can('articles,write')) {
+            // Permission granted
+        }
+
+        // 3. Or checking a single permission string
+        if ($this->user->can('updatePost')) {
+            // Permission granted
+        }
+    }
 }
 ```
 
-**Note:** Additionally,You can also configure a `denyCallback` for each `policy`, which will be invoked when the user does not meet the required permission. This callback takes precedence. The configuration is similar to Yii's official [AccessControl](https://www.yiiframework.com/doc/guide/2.0/en/security-authorization#access-control-filter).
-
-See [Casbin API](https://casbin.org/docs/en/management-api) for more APIs.
-
 ## Define your own model.conf
 
-[Supported models](https://github.com/php-casbin/php-casbin#supported-models).
+You can customize your own model configuration file (e.g. `casbin-basic-model.conf`). For full syntax and pre-defined model examples, see [Casbin Supported Models](https://casbin.apache.org/docs/supported-models) and [PHP-Casbin Models](https://github.com/php-casbin/php-casbin#supported-models).
 
 ## Learning Casbin
 
-You can find the full documentation of Casbin [on the website](https://casbin.org/).
+You can find the full documentation of Casbin [on the website](https://casbin.apache.org/).
+
+## License
+
+This project is licensed under the [Apache-2.0 License](LICENSE).
