@@ -39,6 +39,9 @@
         "composer/composer": "^2.10"
     },
     "suggest": {
+        "yiisoft/db-sqlite": "Required for using SQLite database implementation with yiisoft/db.",
+        "yiisoft/db-mysql": "Required for using MySQL/MariaDB database implementation with yiisoft/db.",
+        "yiisoft/db-pgsql": "Required for using PostgreSQL database implementation with yiisoft/db.",
         "yiisoft/user": "Required for automatically retrieving current logged-in user ID via CurrentUser in middlewares."
     },
     "autoload": {

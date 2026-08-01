@@ -26,7 +26,14 @@ An authorization library for the Yii 3.0 PHP Framework, based on [Casbin](https:
 
 ### Getting Composer package
 
-Require this package in the `composer.json` of your Yii 3.0 project. This will download the package.
+Require this package in the `composer.json` of your Yii 3.0 project.
+
+> **Note**: This package requires a database driver implementation for `yiisoft/db` (such as `yiisoft/db-mysql`, `yiisoft/db-sqlite`, `yiisoft/db-pgsql`, etc.) in your application. Make sure your project has installed a database driver.
+>
+> If your project doesn't have a database driver yet, install one first (for example, SQLite or MySQL):
+> ```bash
+> composer require yiisoft/db-mysql # or yiisoft/db-sqlite or yiisoft/db-pgsql
+> ```
 
 ```bash
 composer require casbin/yii-permission
