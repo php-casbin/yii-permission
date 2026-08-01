@@ -107,15 +107,17 @@ In Yii 3.0, you can directly inject native `\Casbin\Enforcer` into your actions,
 
 ```php
 use Casbin\Enforcer;
+use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 
-class UserController
+final readonly class Action
 {
     public function __construct(
-        private Enforcer $enforcer
+        private Enforcer $enforcer,
+        private ResponseFactoryInterface $responseFactory
     ) {}
 
-    public function index(): ResponseInterface
+    public function __invoke(): ResponseInterface
     {
         // adds permissions to a user with full IDE autocomplete
         $this->enforcer->addPermissionForUser('eve', 'articles', 'read');
@@ -129,8 +131,14 @@ class UserController
         // checks permission
         if ($this->enforcer->enforce('eve', 'articles', 'edit')) {
             // permit eve to edit articles
+            $response = $this->responseFactory->createResponse();
+            $response->getBody()->write('<div>permit is: true</div>');
+            return $response;
         } else {
             // deny the request
+            $response = $this->responseFactory->createResponse();
+            $response->getBody()->write('<div>permit is: false</div>');
+            return $response;
         }
     }
 }

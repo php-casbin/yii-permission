@@ -58,8 +58,7 @@
     "extra": {
         "config-plugin": {
             "params": "config/params.php",
-            "di": "config/di.php",
-            "db-migration": "src/migrations"
+            "di": "config/di.php"
         }
     },
     "config": {

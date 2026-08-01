@@ -42,4 +42,10 @@ return [
             'casbin_rules_table' => '{{%casbin_rule}}',
         ],
     ],
+
+    'yiisoft/db-migration' => [
+        'sourceNamespaces' => [
+            'Yii\\Permission\\Migrations',
+        ],
+    ],
 ];
