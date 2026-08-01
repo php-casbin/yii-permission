@@ -72,15 +72,16 @@ return [
 
 `casbin/yii-permission` automatically registers its database migration path (`src/migrations`) via `yiisoft/config` under `"db-migration"`.
 
-Run the Yii 3.0 database migration command to create the `casbin_rule` table:
+Run the Yii 3.0 database migration command to create the `casbin_rule` table (requires `yiisoft/db-migration` in your application):
 
 ```bash
-./yii migrate/up
+composer require yiisoft/db-migration # if not installed yet
+./yii migrate:up
 ```
 
 > **Troubleshooting: ConnectionInterface Not Found**
 >
-> If running `./yii migrate/up` throws an exception:
+> If running `./yii migrate:up` throws an exception:
 > `No definition or class found or resolvable for "Yiisoft\Db\Connection\ConnectionInterface"`
 >
 > It means your Yii 3 application has not registered a default `ConnectionInterface` in the DI container yet. Ensure your application's DI container (e.g. `config/common/di/db.php`) defines `Yiisoft\Db\Connection\ConnectionInterface::class`.

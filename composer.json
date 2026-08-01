@@ -42,6 +42,7 @@
         "yiisoft/db-sqlite": "Required for using SQLite database implementation with yiisoft/db.",
         "yiisoft/db-mysql": "Required for using MySQL/MariaDB database implementation with yiisoft/db.",
         "yiisoft/db-pgsql": "Required for using PostgreSQL database implementation with yiisoft/db.",
+        "yiisoft/db-migration": "Required for running database migrations via ./yii migrate:up.",
         "yiisoft/user": "Required for automatically retrieving current logged-in user ID via CurrentUser in middlewares."
     },
     "autoload": {
